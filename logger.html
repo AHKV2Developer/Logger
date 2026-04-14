@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
+    .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; }
+    .blue { background: #007bff; }
+    .green { background: #28a745; }
+    #status { font-size: 20px; color: #bbb; margin-top: 20px; }
+    #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; }
+  </style>
+</head>
+<body>
+  <h2>Standalone Voice Logger</h2>
+  
+  <button class="btn blue" onclick="startVoice(false)">🎤 VOICE ONLY</button>
+  <button class="btn green" onclick="startVoice(true)">📍 VOICE + GPS</button>
+  
+  <div id="status">Ready</div>
+  <div id="transcript">...</div>
+
+  <script>
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    let useGps = false;
+
+    // REPLACE THIS URL with your /exec link from Google
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxSnvF81w3t4ZDUV9r2W1pKyGnHe5HTAHKi69gTGpylmilZuSMvZEuR_IIoYwz0_8Ux/exec";
+
+    function startVoice(gps) {
+      useGps = gps;
+      document.getElementById('status').innerText = "Listening...";
+      recognition.start();
+    }
+
+    recognition.onresult = (event) => {
+      const text = event.results[0][0].transcript;
+      document.getElementById('transcript').innerText = text;
+      
+      if (useGps) {
+        document.getElementById('status').innerText = "Getting GPS...";
+        navigator.geolocation.getCurrentPosition(
+          pos => sendData(text, pos.coords.latitude, pos.coords.longitude),
+          err => sendData(text, "GPS Error", "GPS Error")
+        );
+      } else {
+        sendData(text, "N/A", "N/A");
+      }
+    };
+
+    function sendData(text, lat, lon) {
+      document.getElementById('status').innerText = "Sending...";
+      
+      fetch(WEB_APP_URL, {
+        method: 'POST',
+        mode: 'no-cors', // This is vital for talking to Google Apps Script from a local file
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text, lat: lat, lon: lon })
+      })
+      .then(() => {
+        document.getElementById('status').innerText = "✅ Saved to Sheet!";
+        setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 3000);
+      })
+      .catch(err => {
+        document.getElementById('status').innerText = "Error: " + err;
+      });
+    }
+  </script>
+</body>
+</html>
