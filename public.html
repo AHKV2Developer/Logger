@@ -44,7 +44,8 @@
     handleSetup();
 
     // --- 2. AUDIO & TOGGLE LOGIC ---
-    let beepEnabled = localStorage.getItem('beepEnabled') !== 'false';
+    // Use JSON.parse to ensure we treat the storage as a Boolean, not a String
+    let beepEnabled = JSON.parse(localStorage.getItem('beepEnabled') ?? 'true');
     const btnVoice = document.getElementById('btnVoice');
     const toast = document.getElementById('toast');
 
@@ -55,7 +56,7 @@
     }
 
     function playBeep(freq) {
-        if (!beepEnabled) return;
+        if (beepEnabled === false) return; // Explicit check
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = ctx.createOscillator();
         osc.frequency.value = freq;
@@ -73,7 +74,8 @@
         pressTimer = setTimeout(() => {
             isLongPress = true;
             beepEnabled = !beepEnabled;
-            localStorage.setItem('beepEnabled', beepEnabled);
+            // Save as JSON string
+            localStorage.setItem('beepEnabled', JSON.stringify(beepEnabled));
             showToast(beepEnabled ? "🔊 Beeps: ON" : "🔇 Beeps: OFF");
             playBeep(beepEnabled ? 800 : 400);
         }, 500);
@@ -86,6 +88,7 @@
         }
     }
 
+    // Attach listeners
     btnVoice.addEventListener('mousedown', handleDown);
     btnVoice.addEventListener('mouseup', handleUp);
     btnVoice.addEventListener('touchstart', (e) => { e.preventDefault(); handleDown(); });
