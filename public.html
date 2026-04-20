@@ -70,7 +70,39 @@
         document.getElementById('status').innerText = "Error: " + event.error;
         toggleButtons(false);
     };
+function handleSetup() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const deployUrl = urlParams.get('deploy');
+    
+    // DEBUG: Print what we found
+    console.log("Attempting setup...");
+    console.log("Found deploy parameter:", deployUrl);
 
+    if (deployUrl) {
+        const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
+        const isValid = regex.test(deployUrl);
+        
+        console.log("Regex Validation Result:", isValid);
+
+        if (isValid) {
+            localStorage.setItem('loggerScriptURL', deployUrl);
+            console.log("Setup Successful! Saved to localStorage.");
+            alert("Setup Successful!");
+            
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState(null, '', cleanUrl);
+        } else {
+            console.error("Regex failed! The URL structure doesn't match.");
+            alert("Setup failed: Invalid URL structure.");
+        }
+    } else {
+        console.warn("No 'deploy' parameter found in the URL.");
+    }
+}
+
+// Ensure this runs
+handleSetup();
+    
     function sendData(text, lat, lon) {
         document.getElementById('status').innerText = "Sending...";
         
