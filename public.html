@@ -28,7 +28,6 @@
     function handleSetup() {
         const urlParams = new URLSearchParams(window.location.search);
         const deployUrl = urlParams.get('deploy');
-
         if (deployUrl) {
             const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
             if (regex.test(deployUrl)) {
@@ -36,16 +35,12 @@
                 alert("Setup Successful!");
                 const cleanUrl = window.location.origin + window.location.pathname;
                 window.history.replaceState(null, '', cleanUrl);
-            } else {
-                alert("Invalid Setup URL.");
             }
         }
     }
     handleSetup();
 
     // --- 2. AUDIO & TOGGLE LOGIC ---
-    // Use JSON.parse to ensure we treat the storage as a Boolean, not a String
-    let beepEnabled = JSON.parse(localStorage.getItem('beepEnabled') ?? 'true');
     const btnVoice = document.getElementById('btnVoice');
     const toast = document.getElementById('toast');
 
@@ -56,7 +51,15 @@
     }
 
     function playBeep(freq) {
-        if (beepEnabled === false) return; // Explicit check
+        // ALWAYS check the "Source of Truth" in localStorage directly
+        const enabled = JSON.parse(localStorage.getItem('beepEnabled') ?? 'true');
+        
+        if (enabled === false) {
+            console.log("Beep skipped (Setting is OFF)");
+            return;
+        }
+
+        console.log("Playing beep...");
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = ctx.createOscillator();
         osc.frequency.value = freq;
@@ -73,11 +76,13 @@
         isLongPress = false;
         pressTimer = setTimeout(() => {
             isLongPress = true;
-            beepEnabled = !beepEnabled;
-            // Save as JSON string
-            localStorage.setItem('beepEnabled', JSON.stringify(beepEnabled));
-            showToast(beepEnabled ? "🔊 Beeps: ON" : "🔇 Beeps: OFF");
-            playBeep(beepEnabled ? 800 : 400);
+            // Get current, toggle, and save
+            let current = JSON.parse(localStorage.getItem('beepEnabled') ?? 'true');
+            let next = !current;
+            localStorage.setItem('beepEnabled', JSON.stringify(next));
+            
+            showToast(next ? "🔊 Beeps: ON" : "🔇 Beeps: OFF");
+            playBeep(next ? 800 : 400);
         }, 500);
     }
 
@@ -88,7 +93,6 @@
         }
     }
 
-    // Attach listeners
     btnVoice.addEventListener('mousedown', handleDown);
     btnVoice.addEventListener('mouseup', handleUp);
     btnVoice.addEventListener('touchstart', (e) => { e.preventDefault(); handleDown(); });
@@ -102,7 +106,7 @@
     function startVoice(gps) {
         const url = localStorage.getItem('loggerScriptURL');
         if (!url) {
-            alert("Setup not complete. Please redo the handshake from your sheet.");
+            alert("Setup not complete.");
             return;
         }
 
