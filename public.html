@@ -4,49 +4,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
-    .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; }
-    .btn:disabled { background: #555; opacity: 0.6; } /* Grey out when busy */
+    .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: manipulation; }
+    .btn:disabled { background: #555; opacity: 0.6; }
     .blue { background: #007bff; }
     .green { background: #28a745; }
     #status { font-size: 20px; color: #bbb; margin-top: 20px; }
     #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; }
+    #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; padding: 10px 20px; border-radius: 5px; display: none; }
   </style>
 </head>
 <body>
   <h2>Voice Logger</h2>
   
-  <button id="btnVoice" class="btn blue" onclick="startVoice(false)">🎤 VOICE ONLY</button>
+  <button id="btnVoice" class="btn blue">🎤 VOICE ONLY</button>
   <button id="btnGps" class="btn green" onclick="startVoice(true)">📍 VOICE + GPS</button>
   
   <div id="status">Ready</div>
   <div id="transcript">...</div>
+  <div id="toast"></div>
 
   <script>
+    // --- 1. SETUP & HANDSHAKE ---
+    function handleSetup() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const deployUrl = urlParams.get('deploy');
+
+        if (deployUrl) {
+            const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
+            if (regex.test(deployUrl)) {
+                localStorage.setItem('loggerScriptURL', deployUrl);
+                alert("Setup Successful!");
+                const cleanUrl = window.location.origin + window.location.pathname;
+                window.history.replaceState(null, '', cleanUrl);
+            } else {
+                alert("Invalid Setup URL.");
+            }
+        }
+    }
+    handleSetup();
+
+    // --- 2. AUDIO & TOGGLE LOGIC ---
+    let beepEnabled = localStorage.getItem('beepEnabled') !== 'false';
+    const btnVoice = document.getElementById('btnVoice');
+    const toast = document.getElementById('toast');
+
+    function showToast(msg) {
+        toast.innerText = msg;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2000);
+    }
+
+    function playBeep(freq) {
+        if (!beepEnabled) return;
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.frequency.value = freq;
+        osc.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.1);
+    }
+
+    // Long Press Logic
+    let pressTimer;
+    let isLongPress = false;
+
+    function handleDown() {
+        isLongPress = false;
+        pressTimer = setTimeout(() => {
+            isLongPress = true;
+            beepEnabled = !beepEnabled;
+            localStorage.setItem('beepEnabled', beepEnabled);
+            showToast(beepEnabled ? "🔊 Beeps: ON" : "🔇 Beeps: OFF");
+            playBeep(beepEnabled ? 800 : 400);
+        }, 500);
+    }
+
+    function handleUp() {
+        clearTimeout(pressTimer);
+        if (!isLongPress) {
+            startVoice(false);
+        }
+    }
+
+    btnVoice.addEventListener('mousedown', handleDown);
+    btnVoice.addEventListener('mouseup', handleUp);
+    btnVoice.addEventListener('touchstart', (e) => { e.preventDefault(); handleDown(); });
+    btnVoice.addEventListener('touchend', (e) => { e.preventDefault(); handleUp(); });
+
+    // --- 3. VOICE RECOGNITION & SENDING ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     let useGps = false;
 
-    // Helper: Centralized way to get the URL
-    function getScriptUrl() {
-        return localStorage.getItem('loggerScriptURL'); 
-    }
-
-    function toggleButtons(disabled) {
-        document.getElementById('btnVoice').disabled = disabled;
-        document.getElementById('btnGps').disabled = disabled;
-    }
-
     function startVoice(gps) {
-        const url = getScriptUrl();
+        const url = localStorage.getItem('loggerScriptURL');
         if (!url) {
-            alert("Setup not complete. Please follow the setup link from your spreadsheet.");
+            alert("Setup not complete. Please redo the handshake from your sheet.");
             return;
         }
 
+        playBeep(600);
         useGps = gps;
         document.getElementById('transcript').innerText = "...";
         document.getElementById('status').innerText = "Listening...";
-        toggleButtons(true); // Prevent double-clicks
         recognition.start();
     }
 
@@ -65,48 +125,9 @@
         }
     };
 
-    // New: Handle errors and clean up state
-    recognition.onerror = (event) => {
-        document.getElementById('status').innerText = "Error: " + event.error;
-        toggleButtons(false);
-    };
-function handleSetup() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const deployUrl = urlParams.get('deploy');
-    
-    // DEBUG: Print what we found
-    console.log("Attempting setup...");
-    console.log("Found deploy parameter:", deployUrl);
-
-    if (deployUrl) {
-        const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
-        const isValid = regex.test(deployUrl);
-        
-        console.log("Regex Validation Result:", isValid);
-
-        if (isValid) {
-            localStorage.setItem('loggerScriptURL', deployUrl);
-            console.log("Setup Successful! Saved to localStorage.");
-            alert("Setup Successful!");
-            
-            const cleanUrl = window.location.origin + window.location.pathname;
-            window.history.replaceState(null, '', cleanUrl);
-        } else {
-            console.error("Regex failed! The URL structure doesn't match.");
-            alert("Setup failed: Invalid URL structure.");
-        }
-    } else {
-        console.warn("No 'deploy' parameter found in the URL.");
-    }
-}
-
-// Ensure this runs
-handleSetup();
-    
     function sendData(text, lat, lon) {
         document.getElementById('status').innerText = "Sending...";
-        
-        fetch(getScriptUrl(), {
+        fetch(localStorage.getItem('loggerScriptURL'), {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
@@ -114,14 +135,11 @@ handleSetup();
         })
         .then(() => {
             document.getElementById('status').innerText = "✅ Saved!";
-            setTimeout(() => { 
-                document.getElementById('status').innerText = "Ready"; 
-                toggleButtons(false);
-            }, 2000);
+            playBeep(1000);
+            setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
         })
         .catch(err => {
             document.getElementById('status').innerText = "Error: " + err;
-            toggleButtons(false);
         });
     }
   </script>
