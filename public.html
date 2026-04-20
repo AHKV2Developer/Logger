@@ -74,7 +74,10 @@
     }
 
     recognition.onresult = (event) => {
-        const text = event.results[0][0].transcript;
+        let rawText = event.results[0][0].transcript;
+        // Capitalize the first letter and keep the rest
+        const text = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+        
         document.getElementById('transcript').innerText = text;
         document.getElementById('status').innerText = "Processing...";
         
