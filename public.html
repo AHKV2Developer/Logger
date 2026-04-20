@@ -28,6 +28,7 @@
     function handleSetup() {
         const urlParams = new URLSearchParams(window.location.search);
         const deployUrl = urlParams.get('deploy');
+
         if (deployUrl) {
             const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
             if (regex.test(deployUrl)) {
@@ -35,12 +36,15 @@
                 alert("Setup Successful!");
                 const cleanUrl = window.location.origin + window.location.pathname;
                 window.history.replaceState(null, '', cleanUrl);
+            } else {
+                alert("Invalid Setup URL.");
             }
         }
     }
     handleSetup();
 
     // --- 2. AUDIO & TOGGLE LOGIC ---
+    let isBeepEnabled = localStorage.getItem('beepEnabled') === 'true';
     const btnVoice = document.getElementById('btnVoice');
     const toast = document.getElementById('toast');
 
@@ -51,15 +55,7 @@
     }
 
     function playBeep(freq) {
-        // ALWAYS check the "Source of Truth" in localStorage directly
-        const enabled = JSON.parse(localStorage.getItem('beepEnabled') ?? 'true');
-        
-        if (enabled === false) {
-            console.log("Beep skipped (Setting is OFF)");
-            return;
-        }
-
-        console.log("Playing beep...");
+        if (!isBeepEnabled) return;
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = ctx.createOscillator();
         osc.frequency.value = freq;
@@ -68,7 +64,7 @@
         osc.stop(ctx.currentTime + 0.1);
     }
 
-    // Long Press Logic
+    // --- 3. LONG PRESS LOGIC ---
     let pressTimer;
     let isLongPress = false;
 
@@ -76,13 +72,13 @@
         isLongPress = false;
         pressTimer = setTimeout(() => {
             isLongPress = true;
-            // Get current, toggle, and save
-            let current = JSON.parse(localStorage.getItem('beepEnabled') ?? 'true');
-            let next = !current;
-            localStorage.setItem('beepEnabled', JSON.stringify(next));
-            
-            showToast(next ? "🔊 Beeps: ON" : "🔇 Beeps: OFF");
-            playBeep(next ? 800 : 400);
+            // Toggle the state
+            isBeepEnabled = !isBeepEnabled;
+            // Persist to storage
+            localStorage.setItem('beepEnabled', isBeepEnabled);
+            // Notify user
+            showToast(isBeepEnabled ? "🔊 Beeps: ON" : "🔇 Beeps: OFF");
+            playBeep(isBeepEnabled ? 800 : 400);
         }, 500);
     }
 
@@ -98,7 +94,7 @@
     btnVoice.addEventListener('touchstart', (e) => { e.preventDefault(); handleDown(); });
     btnVoice.addEventListener('touchend', (e) => { e.preventDefault(); handleUp(); });
 
-    // --- 3. VOICE RECOGNITION & SENDING ---
+    // --- 4. VOICE RECOGNITION & SENDING ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     let useGps = false;
@@ -106,7 +102,7 @@
     function startVoice(gps) {
         const url = localStorage.getItem('loggerScriptURL');
         if (!url) {
-            alert("Setup not complete.");
+            alert("Setup not complete. Please redo the handshake from your sheet.");
             return;
         }
 
