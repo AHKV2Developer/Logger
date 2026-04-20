@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
+    .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; }
+    .btn:disabled { background: #555; opacity: 0.6; } /* Grey out when busy */
+    .blue { background: #007bff; }
+    .green { background: #28a745; }
+    #status { font-size: 20px; color: #bbb; margin-top: 20px; }
+    #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; }
+  </style>
+</head>
+<body>
+  <h2>Voice Logger</h2>
+  
+  <button id="btnVoice" class="btn blue" onclick="startVoice(false)">🎤 VOICE ONLY</button>
+  <button id="btnGps" class="btn green" onclick="startVoice(true)">📍 VOICE + GPS</button>
+  
+  <div id="status">Ready</div>
+  <div id="transcript">...</div>
+
+  <script>
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    let useGps = false;
+
+    // Helper: Centralized way to get the URL
+    function getScriptUrl() {
+        return localStorage.getItem('loggerScriptURL'); 
+    }
+
+    function toggleButtons(disabled) {
+        document.getElementById('btnVoice').disabled = disabled;
+        document.getElementById('btnGps').disabled = disabled;
+    }
+
+    function startVoice(gps) {
+        const url = getScriptUrl();
+        if (!url) {
+            alert("Setup not complete. Please follow the setup link from your spreadsheet.");
+            return;
+        }
+
+        useGps = gps;
+        document.getElementById('transcript').innerText = "...";
+        document.getElementById('status').innerText = "Listening...";
+        toggleButtons(true); // Prevent double-clicks
+        recognition.start();
+    }
+
+    recognition.onresult = (event) => {
+        const text = event.results[0][0].transcript;
+        document.getElementById('transcript').innerText = text;
+        
+        if (useGps) {
+            document.getElementById('status').innerText = "Getting GPS...";
+            navigator.geolocation.getCurrentPosition(
+                pos => sendData(text, pos.coords.latitude, pos.coords.longitude),
+                err => sendData(text, "GPS Error", "GPS Error")
+            );
+        } else {
+            sendData(text, "N/A", "N/A");
+        }
+    };
+
+    // New: Handle errors and clean up state
+    recognition.onerror = (event) => {
+        document.getElementById('status').innerText = "Error: " + event.error;
+        toggleButtons(false);
+    };
+
+    function sendData(text, lat, lon) {
+        document.getElementById('status').innerText = "Sending...";
+        
+        fetch(getScriptUrl(), {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, lat: lat, lon: lon })
+        })
+        .then(() => {
+            document.getElementById('status').innerText = "✅ Saved!";
+            setTimeout(() => { 
+                document.getElementById('status').innerText = "Ready"; 
+                toggleButtons(false);
+            }, 2000);
+        })
+        .catch(err => {
+            document.getElementById('status').innerText = "Error: " + err;
+            toggleButtons(false);
+        });
+    }
+  </script>
+</body>
+</html>
