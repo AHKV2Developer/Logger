@@ -1,152 +1,94 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  
-  <style>
-    body { font-family: sans-serif; text-align: center; background: #121212; color: white; padding: 20px; }
-    .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: manipulation; }
-    .btn:disabled { background: #555; opacity: 0.6; }
-    .blue { background: #007bff; }
-    .green { background: #28a745; }
-    
-    #status { font-size: 20px; color: #bbb; margin-top: 20px; }
-    #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; }
-    
-    /* Toast Notification Style */
-    #toast { 
-      position: fixed; 
-      bottom: 20px; 
-      left: 50%; 
-      transform: translateX(-50%); 
-      background: #333; 
-      padding: 10px 20px; 
-      border-radius: 5px; 
-      display: none; 
-      z-index: 1000;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Voice Logger Silent</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; }
+        .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: manipulation; transition: transform 0.1s; }
+        .btn:active { transform: scale(0.98); }
+        .blue { background: #007bff; }
+        .green { background: #28a745; }
+        
+        /* Visual Pulsing for Recording State */
+        .recording { background: #ef4444 !important; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        
+        #status { font-size: 20px; color: #bbb; margin-top: 20px; }
+        #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; }
+    </style>
 </head>
 <body>
 
   <h2>Voice Logger</h2>
   
   <button id="btnVoice" class="btn blue">🎤 VOICE ONLY</button>
-  <button id="btnGps" class="btn green" onclick="startVoice(true)">📍 VOICE + GPS</button>
+  <button id="btnGps" class="btn green">📍 VOICE + GPS</button>
   
   <div id="status">Ready</div>
   <div id="transcript">...</div>
-  <div id="toast"></div>
 
   <script>
-    // --- 1. SETUP & HANDSHAKE LOGIC ---
-    // This checks for the ?deploy URL parameter to verify the handshake
+    // --- 1. SETUP & HANDSHAKE ---
     function handleSetup() {
         const urlParams = new URLSearchParams(window.location.search);
         const deployUrl = urlParams.get('deploy');
 
         if (deployUrl) {
+            // Regex to ensure the URL matches the Google Script format
             const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
+            
             if (regex.test(deployUrl)) {
                 localStorage.setItem('loggerScriptURL', deployUrl);
-                alert("Setup Successful! Handshake completed.");
-                // Clean the URL to avoid re-triggering setup on refresh
-                const cleanUrl = window.location.origin + window.location.pathname;
-                window.history.replaceState(null, '', cleanUrl);
+                alert("Setup Successful!");
+                // Clear the URL to prevent re-processing on refresh
+                window.history.replaceState(null, '', window.location.origin + window.location.pathname);
             } else {
-                alert("Invalid Setup URL provided.");
+                alert("Error: Invalid Setup URL provided.");
             }
         }
     }
-    // Execute handshake immediately on load
     handleSetup();
 
-    // --- 2. AUDIO & TOGGLE LOGIC ---
-    // We strictly store the beep preference as a boolean in localStorage
-    let isBeepEnabled = localStorage.getItem('beepEnabled') === 'true';
-    
-    const btnVoice = document.getElementById('btnVoice');
-    const toast = document.getElementById('toast');
-
-    // Display a temporary message for the user
-    function showToast(msg) {
-        toast.innerText = msg;
-        toast.style.display = 'block';
-        setTimeout(() => { toast.style.display = 'none'; }, 2000);
-    }
-
-    // Generate an audible beep using Web Audio API
-    function playBeep(freq) {
-        // If the toggle is explicitly OFF, we exit immediately
-        if (isBeepEnabled === false) return;
-        
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        osc.frequency.value = freq;
-        osc.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.1);
-    }
-
-    // --- 3. LONG PRESS GESTURE LOGIC ---
-    let pressTimer;
-    let isLongPress = false;
-
-    function handleDown() {
-        isLongPress = false;
-        pressTimer = setTimeout(() => {
-            isLongPress = true;
-            // Toggle the state
-            isBeepEnabled = !isBeepEnabled;
-            // Persist the state
-            localStorage.setItem('beepEnabled', isBeepEnabled);
-            // Provide feedback
-            showToast(isBeepEnabled ? "🔊 Beeps: ON" : "🔇 Beeps: OFF");
-            playBeep(isBeepEnabled ? 800 : 400);
-        }, 500); // Trigger after 500ms
-    }
-
-    function handleUp() {
-        clearTimeout(pressTimer);
-        // Only trigger voice if it was a quick tap, not a long press toggle
-        if (!isLongPress) {
-            startVoice(false);
-        }
-    }
-
-    // Add listeners for both mouse and touch (mobile/desktop)
-    btnVoice.addEventListener('mousedown', handleDown);
-    btnVoice.addEventListener('mouseup', handleUp);
-    btnVoice.addEventListener('touchstart', (e) => { e.preventDefault(); handleDown(); });
-    btnVoice.addEventListener('touchend', (e) => { e.preventDefault(); handleUp(); });
-
-    // --- 4. VOICE RECOGNITION ---
+    // --- 2. VOICE RECOGNITION ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
+    const btnVoice = document.getElementById('btnVoice');
+    const btnGps = document.getElementById('btnGps');
     let useGps = false;
 
-    // Orchestrate starting the voice recognition
+    // Visual feedback when mic opens
+    recognition.onstart = () => {
+        document.getElementById('status').innerText = "Listening...";
+        btnVoice.classList.add('recording');
+        btnGps.classList.add('recording');
+    };
+
+    // Visual feedback when mic closes
+    recognition.onend = () => {
+        btnVoice.classList.remove('recording');
+        btnGps.classList.remove('recording');
+    };
+
     function startVoice(gps) {
         const url = localStorage.getItem('loggerScriptURL');
         if (!url) {
             alert("Setup not complete. Please redo the handshake from your sheet.");
             return;
         }
-
-        playBeep(600); // Start Beep
+        
         useGps = gps;
         document.getElementById('transcript').innerText = "...";
-        document.getElementById('status').innerText = "Listening...";
         recognition.start();
     }
 
-    // Handle results
     recognition.onresult = (event) => {
         const text = event.results[0][0].transcript;
         document.getElementById('transcript').innerText = text;
+        document.getElementById('status').innerText = "Processing...";
         
         if (useGps) {
-            document.getElementById('status').innerText = "Getting GPS...";
             navigator.geolocation.getCurrentPosition(
                 pos => sendData(text, pos.coords.latitude, pos.coords.longitude),
                 err => sendData(text, "GPS Error", "GPS Error")
@@ -156,24 +98,27 @@
         }
     };
 
-    // --- 5. DATA TRANSMISSION ---
+    // --- 3. DATA SENDING ---
     function sendData(text, lat, lon) {
         document.getElementById('status').innerText = "Sending...";
         fetch(localStorage.getItem('loggerScriptURL'), {
-            method: 'POST',
+            method: 'POST', 
             mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: text, lat: lat, lon: lon })
         })
         .then(() => {
             document.getElementById('status').innerText = "✅ Saved!";
-            playBeep(1000); // Confirmation Beep
             setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
         })
         .catch(err => {
             document.getElementById('status').innerText = "Error: " + err;
         });
     }
+
+    // Attach listeners
+    btnVoice.onclick = () => startVoice(false);
+    btnGps.onclick = () => startVoice(true);
   </script>
 </body>
 </html>
