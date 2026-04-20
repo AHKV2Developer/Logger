@@ -3,18 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Voice Logger Silent</title>
+    <title>Voice Logger</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; }
         .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: manipulation; transition: transform 0.1s; }
         .btn:active { transform: scale(0.98); }
         .blue { background: #007bff; }
         .green { background: #28a745; }
-        
-        /* Visual Pulsing for Recording State */
-        .recording { background: #ef4444 !important; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-        
         #status { font-size: 20px; color: #bbb; margin-top: 20px; }
         #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; }
     </style>
@@ -42,7 +37,6 @@
             if (regex.test(deployUrl)) {
                 localStorage.setItem('loggerScriptURL', deployUrl);
                 alert("Setup Successful!");
-                // Clear the URL to prevent re-processing on refresh
                 window.history.replaceState(null, '', window.location.origin + window.location.pathname);
             } else {
                 alert("Error: Invalid Setup URL provided.");
@@ -58,17 +52,13 @@
     const btnGps = document.getElementById('btnGps');
     let useGps = false;
 
-    // Visual feedback when mic opens
+    // We keep the Status Text, but remove any UI class/color changes
     recognition.onstart = () => {
         document.getElementById('status').innerText = "Listening...";
-        btnVoice.classList.add('recording');
-        btnGps.classList.add('recording');
     };
 
-    // Visual feedback when mic closes
     recognition.onend = () => {
-        btnVoice.classList.remove('recording');
-        btnGps.classList.remove('recording');
+        // We do nothing here, the status will update on result
     };
 
     function startVoice(gps) {
