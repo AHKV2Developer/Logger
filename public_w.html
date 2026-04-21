@@ -13,8 +13,13 @@
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; margin: 0; }
         
-        /* Containers */
-        #ui-container { transition: opacity 0.3s; }
+        /* Setup Screen */
+        #setup-screen { display: none; padding-top: 50px; }
+        body.unconfigured #ui-container, body.unconfigured #btn-container, body.unconfigured #ui-container-bottom { display: none; }
+        body.unconfigured #setup-screen { display: block; }
+
+        /* Interface */
+        #ui-container, #ui-container-bottom { transition: opacity 0.3s; }
         #btn-container { display: flex; flex-direction: column; width: 100%; transition: all 0.3s; }
 
         .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: none; transition: transform 0.1s; }
@@ -22,18 +27,15 @@
         .blue { background: #007bff; }
         .green { background: #28a745; }
         
-        /* Hiding specific buttons in Button Mode */
-        body.mode-voice #ui-container, body.mode-gps #ui-container { display: none; }
-        body.mode-voice #btnGps, body.mode-gps #btnVoice { display: none; }
+        /* Lean HUD Styles */
+        body.mode-voice #ui-container, body.mode-voice #ui-container-bottom, body.mode-voice #btnGps { display: none; }
+        body.mode-gps #ui-container, body.mode-gps #ui-container-bottom, body.mode-gps #btnVoice { display: none; }
         
-        /* Button Mode Floating State */
         body.mode-voice #btn-container, body.mode-gps #btn-container { 
-            position: fixed; bottom: 20px; right: 20px; 
-            width: 70px; height: 70px; z-index: 9999;
+            position: fixed; bottom: 20px; right: 20px; width: 70px; height: 70px; z-index: 9999;
         }
         body.mode-voice .btn, body.mode-gps .btn { 
-            width: 70px; height: 70px; padding: 0; border-radius: 50%;
-            font-size: 10px; margin: 0;
+            width: 70px; height: 70px; padding: 0; border-radius: 50%; font-size: 10px; margin: 0;
         }
 
         #status { font-size: 20px; color: #bbb; margin-top: 20px; }
@@ -41,6 +43,13 @@
     </style>
 </head>
 <body>
+
+ <div id="setup-screen">
+    <h2>Setup Required</h2>
+    <p>Please paste your Google Script Deploy URL:</p>
+    <input type="text" id="deployInput" placeholder="https://script.google.com/..." style="width:90%; padding:15px; border-radius:10px; border:none; margin-bottom: 20px;">
+    <button onclick="saveSetup()" class="btn blue">Save Configuration</button>
+ </div>
 
  <div id="ui-container">
      <h2>Voice Logger</h2>
@@ -60,28 +69,42 @@
     let pressTimer;
     const LONG_PRESS_DURATION = 600; 
 
-    // Handle handshake from URL
-    function handleSetup() {
+    // 1. Handshake & Setup Logic
+    function checkConfiguration() {
+        const savedUrl = localStorage.getItem('loggerScriptURL');
         const urlParams = new URLSearchParams(window.location.search);
         const deployUrl = urlParams.get('deploy');
+        
         if (deployUrl) {
             const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
             if (regex.test(deployUrl)) {
                 localStorage.setItem('loggerScriptURL', deployUrl);
-                alert("Setup Successful!");
                 window.history.replaceState(null, '', window.location.origin + window.location.pathname);
+                alert("Setup successful!");
+                location.reload();
+                return;
             }
         }
-    }
-    handleSetup();
 
-    function toggleMode(mode) {
-        // If we are already in the mode, return to full; otherwise set mode
-        if (document.body.classList.contains(mode)) {
-            document.body.className = '';
-        } else {
-            document.body.className = mode;
+        if (!savedUrl) {
+            document.body.classList.add('unconfigured');
         }
+    }
+
+    function saveSetup() {
+        const url = document.getElementById('deployInput').value;
+        const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
+        if (regex.test(url)) {
+            localStorage.setItem('loggerScriptURL', url);
+            location.reload(); 
+        } else {
+            alert("Invalid URL.");
+        }
+    }
+
+    // 2. Gesture Engine
+    function toggleMode(mode) {
+        document.body.className = document.body.classList.contains(mode) ? '' : mode;
     }
 
     function setupButton(button, useGps, modeName) {
@@ -103,33 +126,25 @@
     setupButton(document.getElementById('btnVoice'), false, 'mode-voice');
     setupButton(document.getElementById('btnGps'), true, 'mode-gps');
 
+    // 3. Recording & Data
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
 
     recognition.onstart = () => { document.getElementById('status').innerText = "Listening..."; };
     recognition.onresult = (event) => {
-        let rawText = event.results[0][0].transcript;
-        let text = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+        let text = event.results[0][0].transcript.charAt(0).toUpperCase() + event.results[0][0].transcript.slice(1);
         document.getElementById('transcript').innerText = text;
         document.getElementById('status').innerText = "Processing...";
-        
         const useGps = localStorage.getItem('lastUseGps') === 'true';
         
         if (useGps) {
-            navigator.geolocation.getCurrentPosition(
-                pos => sendData(text, pos.coords.latitude, pos.coords.longitude),
-                err => sendData(text, "GPS Error", "GPS Error")
-            );
+            navigator.geolocation.getCurrentPosition(pos => sendData(text, pos.coords.latitude, pos.coords.longitude), err => sendData(text, "GPS Error", "GPS Error"));
         } else {
             sendData(text, "N/A", "N/A");
         }
     };
 
     function startVoice(useGps) {
-        if (!localStorage.getItem('loggerScriptURL')) {
-            alert("Setup not complete.");
-            return;
-        }
         localStorage.setItem('lastUseGps', useGps);
         document.getElementById('transcript').innerText = "...";
         recognition.start();
@@ -137,20 +152,15 @@
 
     function sendData(text, lat, lon) {
         document.getElementById('status').innerText = "Sending...";
-        fetch(localStorage.getItem('loggerScriptURL'), {
-            method: 'POST', 
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text, lat: lat, lon: lon })
-        })
+        fetch(localStorage.getItem('loggerScriptURL'), { method: 'POST', mode: 'no-cors', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ text, lat, lon }) })
         .then(() => {
             document.getElementById('status').innerText = "✅ Saved!";
             setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
         })
-        .catch(err => {
-            document.getElementById('status').innerText = "Error";
-        });
+        .catch(err => { document.getElementById('status').innerText = "Error"; });
     }
+
+    checkConfiguration();
  </script>
 </body>
 </html>
