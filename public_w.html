@@ -9,33 +9,46 @@
     
     <title>Voice Logger</title>
     <style>
-        /* 100dvh prevents the "black screen" overflow issue */
-        body { font-family: -apple-system, sans-serif; background: #121212; color: white; margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; padding: 5px; box-sizing: border-box; }
+        /* Center everything and use flex for layout control */
+        body { 
+            font-family: -apple-system, sans-serif; 
+            background: #121212; 
+            color: white; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            height: 100dvh; 
+            overflow: hidden; 
+            padding: 10px; 
+            box-sizing: border-box; 
+        }
         
-        #ui-container { margin-bottom: 5px; }
-        #btn-container { display: flex; flex-direction: column; width: 100%; gap: 10px; }
+        #ui-container { width: 100%; text-align: center; }
+        #btn-container { display: flex; flex-direction: column; width: 100%; gap: 15px; }
         
-        .btn { padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; touch-action: none; transition: all 0.2s; }
+        .btn { padding: 30px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; touch-action: none; transition: all 0.2s; width: 100%; }
         .blue { background: #007bff; }
         .green { background: #28a745; }
 
-        #status { font-size: 14px; color: #bbb; margin-top: 5px; }
-        #transcript { font-style: italic; color: #4fc3f7; margin-top: 2px; font-size: 14px; flex-grow: 1; overflow-y: auto; word-wrap: break-word; }
+        #status { font-size: 18px; color: #bbb; margin-top: 15px; width: 100%; text-align: center; }
+        #transcript { font-style: italic; color: #4fc3f7; margin-top: 5px; font-size: 18px; width: 100%; text-align: center; overflow-y: auto; }
 
-        /* SHRUNK MODE */
+        /* SHRUNK MODE: Optimized for usable Split Screen */
         body.shrunk #ui-container { display: none; }
-        body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 5%; width: 100%; margin-top: 10px; }
-        body.shrunk .btn { width: 47.5%; padding: 15px 0; font-size: 18px; border-radius: 12px; }
-        body.shrunk #status { font-size: 11px; }
-        body.shrunk #transcript { font-size: 11px; }
+        body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 10px; margin-top: 30px; }
+        body.shrunk .btn { width: 47%; padding: 20px 0; font-size: 20px; border-radius: 15px; }
+        body.shrunk #status { font-size: 18px; }
+        body.shrunk #transcript { font-size: 18px; }
     </style>
 </head>
 <body>
 
- <div id="setup-screen" style="display:none; padding-top: 20px;">
+ <div id="setup-screen" style="display:none; padding-top: 20px; text-align: center;">
     <h2>Setup Required</h2>
-    <input type="text" id="deployInput" placeholder="Google Script URL..." style="width:90%; padding:10px;">
-    <button onclick="saveSetup()" class="btn blue" style="width:90%; margin-top:10px;">Save</button>
+    <input type="text" id="deployInput" placeholder="Google Script URL..." style="width:90%; padding:10px; border-radius:10px; border:none; margin-bottom:10px;">
+    <button onclick="saveSetup()" class="btn blue" style="width:90%;">Save</button>
  </div>
 
  <div id="ui-container"><h2>Voice Logger</h2></div>
@@ -51,15 +64,13 @@
  <script>
     let pressTimer;
     let manualOverride = false;
-    let isRecording = false; // Prevents jumping during recording
+    let isRecording = false; 
     const LONG_PRESS_DURATION = 600; 
 
-    // Resize Observer with debounce
+    // Resize Observer
     const observer = new ResizeObserver(entries => {
         if (manualOverride || isRecording) return; 
-        
         const width = entries[0].contentRect.width;
-        // Trigger shrunk mode if window is small
         if (width < 400) {
             document.body.classList.add('shrunk');
         } else {
@@ -100,7 +111,6 @@
 
     recognition.onresult = (event) => {
         let text = event.results[0][0].transcript;
-        // Capitalize first letter
         let formattedText = text.charAt(0).toUpperCase() + text.slice(1);
         document.getElementById('transcript').innerText = formattedText;
         document.getElementById('status').innerText = "Processing...";
