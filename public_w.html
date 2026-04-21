@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    
+    <title>Voice Logger</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; margin: 0; }
+        
+        /* The main interface container */
+        #ui-container { transition: opacity 0.3s; }
+        
+        .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: none; transition: transform 0.1s; }
+        .btn:active { transform: scale(0.98); }
+        .blue { background: #007bff; }
+        .green { background: #28a745; }
+        
+        /* Button Mode styles */
+        body.button-mode #ui-container { display: none; }
+        body.button-mode #btnVoice { 
+            position: fixed; bottom: 20px; right: 20px; 
+            width: 70px; height: 70px; padding: 0; border-radius: 50%;
+            font-size: 12px; z-index: 9999; margin: 0;
+        }
+
+        #status { font-size: 20px; color: #bbb; margin-top: 20px; }
+        #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; }
+    </style>
+</head>
+<body>
+
+ <div id="ui-container">
+     <h2>Voice Logger</h2>
+     <button id="btnGps" class="btn green">📍 VOICE + GPS</button>
+     <div id="status">Ready</div>
+     <div id="transcript">...</div>
+ </div>
+  
+ <button id="btnVoice" class="btn blue">🎤 VOICE</button>
+
+ <script>
+    // --- 1. SETUP & STATE ---
+    let isButtonMode = false;
+    let pressTimer;
+    const LONG_PRESS_DURATION = 600; 
+
+    // Handle handshake from URL
+    function handleSetup() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const deployUrl = urlParams.get('deploy');
+        if (deployUrl) {
+            const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
+            if (regex.test(deployUrl)) {
+                localStorage.setItem('loggerScriptURL', deployUrl);
+                alert("Setup Successful!");
+                window.history.replaceState(null, '', window.location.origin + window.location.pathname);
+            } else {
+                alert("Error: Invalid Setup URL.");
+            }
+        }
+    }
+    handleSetup();
+
+    // --- 2. GESTURE LOGIC (Long Press) ---
+    const btnVoice = document.getElementById('btnVoice');
+    
+    function toggleMode() {
+        isButtonMode = !isButtonMode;
+        document.body.classList.toggle('button-mode', isButtonMode);
+        if (navigator.vibrate) navigator.vibrate(100);
+    }
+
+    btnVoice.addEventListener('touchstart', (e) => {
+        pressTimer = setTimeout(() => {
+            toggleMode();
+            pressTimer = null; 
+        }, LONG_PRESS_DURATION);
+    });
+
+    btnVoice.addEventListener('touchend', (e) => {
+        if (pressTimer) {
+            clearTimeout(pressTimer);
+            startVoice(false); // Trigger Voice Only
+        }
+    });
+
+    // --- 3. RECORDING & GPS LOGIC ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    const btnGps = document.getElementById('btnGps');
+
+    btnGps.onclick = () => startVoice(true);
+
+    recognition.onstart = () => { document.getElementById('status').innerText = "Listening..."; };
+    recognition.onresult = (event) => {
+        let rawText = event.results[0][0].transcript;
+        let text = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+        document.getElementById('transcript').innerText = text;
+        document.getElementById('status').innerText = "Processing...";
+        
+        // Retrieve whether we wanted GPS from the last startVoice call
+        const useGps = localStorage.getItem('lastUseGps') === 'true';
+        
+        if (useGps) {
+            navigator.geolocation.getCurrentPosition(
+                pos => sendData(text, pos.coords.latitude, pos.coords.longitude),
+                err => sendData(text, "GPS Error", "GPS Error")
+            );
+        } else {
+            sendData(text, "N/A", "N/A");
+        }
+    };
+
+    function startVoice(useGps) {
+        if (!localStorage.getItem('loggerScriptURL')) {
+            alert("Setup not complete.");
+            return;
+        }
+        localStorage.setItem('lastUseGps', useGps);
+        document.getElementById('transcript').innerText = "...";
+        recognition.start();
+    }
+
+    // --- 4. DATA SENDING ---
+    function sendData(text, lat, lon) {
+        document.getElementById('status').innerText = "Sending...";
+        fetch(localStorage.getItem('loggerScriptURL'), {
+            method: 'POST', 
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, lat: lat, lon: lon })
+        })
+        .then(() => {
+            document.getElementById('status').innerText = "✅ Saved!";
+            setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
+        })
+        .catch(err => {
+            document.getElementById('status').innerText = "Error";
+        });
+    }
+ </script>
+</body>
+</html>
