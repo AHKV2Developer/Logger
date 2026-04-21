@@ -7,7 +7,7 @@
   "theme_color": "#121212",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "LoggerWidget_255x255.png",
       "sizes": "192x192",
       "type": "image/png"
     }
