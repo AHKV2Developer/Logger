@@ -9,23 +9,24 @@
     
     <title>Voice Logger</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; text-align: center; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; text-align: center; margin: 0; display: flex; flex-direction: column; height: 100vh; transition: none; }
         
-        #ui-container { margin-bottom: 10px; }
+        #ui-container { margin-bottom: 5px; }
         #btn-container { display: flex; flex-direction: column; width: 100%; gap: 10px; }
         
-        .btn { padding: 30px 0; border-radius: 20px; border: none; color: white; font-size: 20px; font-weight: bold; touch-action: none; transition: all 0.2s; }
+        .btn { padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; touch-action: none; transition: all 0.2s; }
         .blue { background: #007bff; }
         .green { background: #28a745; }
 
-        #status { font-size: 14px; color: #bbb; margin-top: 10px; }
-        #transcript { font-style: italic; color: #4fc3f7; margin-top: 5px; font-size: 14px; flex-grow: 1; overflow-y: auto; }
+        #status { font-size: 16px; color: #bbb; margin-top: 10px; }
+        #transcript { font-style: italic; color: #4fc3f7; margin-top: 5px; font-size: 16px; flex-grow: 1; overflow-y: auto; }
 
-        /* SHRUNK MODE (Triggered by class .shrunk) */
+        /* SHRUNK MODE: Optimized for Split Screen */
         body.shrunk #ui-container { display: none; }
-        body.shrunk #btn-container { flex-direction: row; justify-content: center; gap: 10px; }
-        body.shrunk .btn { width: 70px; height: 70px; padding: 0; font-size: 10px; border-radius: 50%; }
+        body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 5%; width: 100%; }
+        body.shrunk .btn { width: 47.5%; padding: 20px 0; font-size: 20px; border-radius: 15px; }
         body.shrunk #status { font-size: 12px; }
+        body.shrunk #transcript { font-size: 12px; }
     </style>
 </head>
 <body>
@@ -48,23 +49,26 @@
 
  <script>
     let pressTimer;
+    let manualOverride = false; // Prevents auto-shrink from fighting the user
     const LONG_PRESS_DURATION = 600; 
 
-    // Resize Observer for Auto-Shrink
+    // Resize Observer: Auto-Shrink if width < 50% of screen width
     const observer = new ResizeObserver(entries => {
-        for (let entry of entries) {
-            // If width < 350px, force shrunk mode
-            if (entry.contentRect.width < 350) {
-                document.body.classList.add('shrunk');
-            } else {
-                // Only auto-remove if not manually toggled? 
-                // We'll keep it simple: allow toggle to override
-            }
+        if (manualOverride) return; // Respect user choice
+        
+        const width = entries[0].contentRect.width;
+        const threshold = window.screen.width * 0.5;
+        
+        if (width < threshold) {
+            document.body.classList.add('shrunk');
+        } else {
+            document.body.classList.remove('shrunk');
         }
     });
     observer.observe(document.body);
 
     function toggleShrunk() {
+        manualOverride = true; // User has made a specific choice
         document.body.classList.toggle('shrunk');
     }
 
@@ -117,7 +121,6 @@
         });
     }
 
-    // Handshake check
     if(!localStorage.getItem('loggerScriptURL')) document.getElementById('setup-screen').style.display = 'block';
     function saveSetup() {
         const url = document.getElementById('deployInput').value;
