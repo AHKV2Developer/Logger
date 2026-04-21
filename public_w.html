@@ -7,11 +7,9 @@
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; height: 100vh; margin: 0; box-sizing: border-box; display: flex; flex-direction: column; }
         
-        h2 { margin-top: 0; }
-        #btn-container { display: flex; flex-direction: column; width: 100%; }
+        #btn-container { display: flex; flex-direction: column; width: 100%; transition: all 0.3s; }
 
-        .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: manipulation; transition: transform 0.1s; }
-        .btn:active { transform: scale(0.98); }
+        .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: none; }
         .blue { background: #007bff; }
         .green { background: #28a745; }
 
@@ -50,66 +48,42 @@
     }
     handleSetup();
 
-    // --- 2. LAYOUT & GESTURE LOGIC ---
+    // --- 2. GESTURE LOGIC (The Fix) ---
     let pressTimer;
-    let isRecording = false;
-    let manualOverride = false;
-    let pageFullyLoaded = false; // Prevents auto-shrink on initial load
-    
-    // Give the layout 500ms to settle before enabling auto-shrink
-    setTimeout(() => { pageFullyLoaded = true; }, 500);
-
-    const btnVoice = document.getElementById('btnVoice');
-    const btnGps = document.getElementById('btnGps');
-
-    const observer = new ResizeObserver(entries => {
-        // Do not auto-shrink if: not fully loaded yet, manual override, or recording
-        if (!pageFullyLoaded || manualOverride || isRecording) return;
-        
-        const isNarrow = entries[0].contentRect.width < 400;
-        if (isNarrow) enterShrunkMode();
-        else exitShrunkMode();
-    });
-    observer.observe(document.body);
-
-    function enterShrunkMode() {
-        document.body.classList.add('shrunk');
-        btnVoice.innerText = "🎤 VOICE";
-        btnGps.innerText = "📍 GPS";
-    }
-
-    function exitShrunkMode() {
-        document.body.classList.remove('shrunk');
-        btnVoice.innerText = "🎤 VOICE ONLY";
-        btnGps.innerText = "📍 VOICE + GPS";
-    }
+    let isLongPress = false;
 
     function toggleMode() {
-        manualOverride = true;
-        if(document.body.classList.contains('shrunk')) exitShrunkMode();
-        else enterShrunkMode();
+        isLongPress = true; // Flag to prevent the click action
+        document.body.classList.toggle('shrunk');
+        const isShrunk = document.body.classList.contains('shrunk');
+        document.getElementById('btnVoice').innerText = isShrunk ? "🎤 VOICE" : "🎤 VOICE ONLY";
+        document.getElementById('btnGps').innerText = isShrunk ? "📍 GPS" : "📍 VOICE + GPS";
     }
 
-    function setupGesture(btn) {
-        btn.addEventListener('touchstart', () => {
+    function setupButton(btn, useGps) {
+        // Pointer events are more reliable than Click/Touch for mobile buttons
+        btn.addEventListener('pointerdown', (e) => {
+            isLongPress = false;
             pressTimer = setTimeout(toggleMode, 600);
         });
-        btn.addEventListener('touchend', () => {
+
+        btn.addEventListener('pointerup', (e) => {
             clearTimeout(pressTimer);
+            if (!isLongPress) {
+                startVoice(useGps);
+            }
         });
     }
-    setupGesture(btnVoice);
-    setupGesture(btnGps);
+
+    setupButton(document.getElementById('btnVoice'), false);
+    setupButton(document.getElementById('btnGps'), true);
 
     // --- 3. VOICE RECOGNITION ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    let useGps = false;
+    let currentUseGps = false;
 
-    recognition.onstart = () => {
-        isRecording = true;
-        document.getElementById('status').innerText = "Listening...";
-    };
+    recognition.onstart = () => { document.getElementById('status').innerText = "Listening..."; };
 
     recognition.onresult = (event) => {
         let rawText = event.results[0][0].transcript;
@@ -117,7 +91,7 @@
         document.getElementById('transcript').innerText = text;
         document.getElementById('status').innerText = "Processing...";
         
-        if (useGps) {
+        if (currentUseGps) {
             navigator.geolocation.getCurrentPosition(
                 pos => sendData(text, pos.coords.latitude, pos.coords.longitude),
                 err => sendData(text, "GPS Error", "GPS Error")
@@ -127,19 +101,15 @@
         }
     };
 
-    recognition.onend = () => { isRecording = false; };
-
-    function startVoice(gps) {
+    function startVoice(useGps) {
         const url = localStorage.getItem('loggerScriptURL');
         if (!url) { alert("Setup not complete."); return; }
-        useGps = gps;
+        currentUseGps = useGps;
         document.getElementById('transcript').innerText = "...";
         recognition.start();
     }
 
-    // --- 4. DATA SENDING ---
     function sendData(text, lat, lon) {
-        document.getElementById('status').innerText = "Sending...";
         fetch(localStorage.getItem('loggerScriptURL'), {
             method: 'POST', 
             mode: 'no-cors',
@@ -149,12 +119,8 @@
         .then(() => {
             document.getElementById('status').innerText = "✅ Saved!";
             setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
-        })
-        .catch(err => { document.getElementById('status').innerText = "Error"; });
+        });
     }
-
-    btnVoice.addEventListener('click', () => { if(!pressTimer) startVoice(false); });
-    btnGps.addEventListener('click', () => { if(!pressTimer) startVoice(true); });
  </script>
 </body>
 </html>
