@@ -3,153 +3,155 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <link rel="manifest" href="manifest.json">
-    
     <title>Voice Logger</title>
     <style>
-        /* Center everything and use flex for layout control */
-        body { 
-            font-family: -apple-system, sans-serif; 
-            background: #121212; 
-            color: white; 
-            margin: 0; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center;
-            height: 100dvh; 
-            overflow: hidden; 
-            padding: 10px; 
-            box-sizing: border-box; 
-        }
+        body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; height: 100vh; margin: 0; box-sizing: border-box; display: flex; flex-direction: column; }
         
-        #ui-container { width: 100%; text-align: center; }
-        #btn-container { display: flex; flex-direction: column; width: 100%; gap: 15px; }
-        
-        .btn { padding: 30px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; touch-action: none; transition: all 0.2s; width: 100%; }
+        h2 { margin-top: 0; }
+
+        /* Main Container for buttons */
+        #btn-container { display: flex; flex-direction: column; width: 100%; }
+
+        .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: manipulation; transition: transform 0.1s; }
+        .btn:active { transform: scale(0.98); }
         .blue { background: #007bff; }
         .green { background: #28a745; }
 
-        #status { font-size: 18px; color: #bbb; margin-top: 15px; width: 100%; text-align: center; }
-        #transcript { font-style: italic; color: #4fc3f7; margin-top: 5px; font-size: 18px; width: 100%; text-align: center; overflow-y: auto; }
+        #status { font-size: 20px; color: #bbb; margin-top: 20px; }
+        #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; font-size: 18px; }
 
-        /* SHRUNK MODE: Optimized for usable Split Screen */
-        body.shrunk #ui-container { display: none; }
-        body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 10px; margin-top: 30px; }
-        body.shrunk .btn { width: 47%; padding: 20px 0; font-size: 20px; border-radius: 15px; }
-        body.shrunk #status { font-size: 18px; }
-        body.shrunk #transcript { font-size: 18px; }
+        /* --- SHRUNK MODE --- */
+        body.shrunk h2 { display: none; }
+        body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 10px; margin-top: 10px; }
+        body.shrunk .btn { width: 48%; padding: 25px 0; font-size: 16px; margin: 0; }
+        body.shrunk #status { font-size: 16px; }
+        body.shrunk #transcript { font-size: 16px; margin: 10px; }
     </style>
 </head>
 <body>
 
- <div id="setup-screen" style="display:none; padding-top: 20px; text-align: center;">
-    <h2>Setup Required</h2>
-    <input type="text" id="deployInput" placeholder="Google Script URL..." style="width:90%; padding:10px; border-radius:10px; border:none; margin-bottom:10px;">
-    <button onclick="saveSetup()" class="btn blue" style="width:90%;">Save</button>
- </div>
-
- <div id="ui-container"><h2>Voice Logger</h2></div>
+ <h2 id="app-title">Voice Logger</h2>
   
  <div id="btn-container">
-     <button id="btnVoice" class="btn blue">VOICE</button>
-     <button id="btnGps" class="btn green">VOICE + GPS</button>
+     <button id="btnVoice" class="btn blue">🎤 VOICE ONLY</button>
+     <button id="btnGps" class="btn green">📍 VOICE + GPS</button>
  </div>
-
+  
  <div id="status">Ready</div>
  <div id="transcript">...</div>
 
  <script>
-    let pressTimer;
-    let manualOverride = false;
-    let isRecording = false; 
-    const LONG_PRESS_DURATION = 600; 
-
-    // Resize Observer
-    const observer = new ResizeObserver(entries => {
-        if (manualOverride || isRecording) return; 
-        const width = entries[0].contentRect.width;
-        if (width < 400) {
-            document.body.classList.add('shrunk');
-        } else {
-            document.body.classList.remove('shrunk');
+    // --- 1. SETUP & HANDSHAKE ---
+    function handleSetup() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const deployUrl = urlParams.get('deploy');
+        if (deployUrl && /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(deployUrl)) {
+            localStorage.setItem('loggerScriptURL', deployUrl);
+            window.history.replaceState(null, '', window.location.origin + window.location.pathname);
         }
+    }
+    handleSetup();
+
+    // --- 2. LAYOUT & GESTURE LOGIC ---
+    let pressTimer;
+    let isRecording = false;
+    let manualOverride = false;
+    const btnVoice = document.getElementById('btnVoice');
+    const btnGps = document.getElementById('btnGps');
+
+    // Auto-switch to Shrunk mode on narrow screens
+    const observer = new ResizeObserver(entries => {
+        if (manualOverride || isRecording) return;
+        const isNarrow = entries[0].contentRect.width < 400;
+        if (isNarrow) enterShrunkMode();
+        else exitShrunkMode();
     });
     observer.observe(document.body);
 
-    function toggleShrunk() {
+    function enterShrunkMode() {
+        document.body.classList.add('shrunk');
+        btnVoice.innerText = "🎤 VOICE";
+        btnGps.innerText = "📍 GPS";
+    }
+
+    function exitShrunkMode() {
+        document.body.classList.remove('shrunk');
+        btnVoice.innerText = "🎤 VOICE ONLY";
+        btnGps.innerText = "📍 VOICE + GPS";
+    }
+
+    function toggleMode() {
         manualOverride = true;
-        document.body.classList.toggle('shrunk');
+        if(document.body.classList.contains('shrunk')) exitShrunkMode();
+        else enterShrunkMode();
     }
 
-    function setupButton(button, useGps) {
-        button.addEventListener('touchstart', (e) => {
-            pressTimer = setTimeout(() => {
-                toggleShrunk();
-                pressTimer = null; 
-            }, LONG_PRESS_DURATION);
+    // Gesture setup
+    function setupGesture(btn) {
+        btn.addEventListener('touchstart', () => {
+            pressTimer = setTimeout(toggleMode, 600);
         });
-        button.addEventListener('touchend', (e) => {
-            if (pressTimer) {
-                clearTimeout(pressTimer);
-                startVoice(useGps);
-            }
+        btn.addEventListener('touchend', () => {
+            clearTimeout(pressTimer);
         });
     }
+    setupGesture(btnVoice);
+    setupGesture(btnGps);
 
-    setupButton(document.getElementById('btnVoice'), false);
-    setupButton(document.getElementById('btnGps'), true);
+    // --- 3. VOICE RECOGNITION ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    let useGps = false;
 
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    
-    recognition.onstart = () => { 
-        isRecording = true; 
-        document.getElementById('status').innerText = "Listening..."; 
+    recognition.onstart = () => {
+        isRecording = true;
+        document.getElementById('status').innerText = "Listening...";
     };
 
     recognition.onresult = (event) => {
-        let text = event.results[0][0].transcript;
-        let formattedText = text.charAt(0).toUpperCase() + text.slice(1);
-        document.getElementById('transcript').innerText = formattedText;
+        let rawText = event.results[0][0].transcript;
+        const text = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+        document.getElementById('transcript').innerText = text;
         document.getElementById('status').innerText = "Processing...";
         
-        const useGps = localStorage.getItem('lastUseGps') === 'true';
         if (useGps) {
             navigator.geolocation.getCurrentPosition(
-                pos => sendData(formattedText, pos.coords.latitude, pos.coords.longitude), 
-                err => sendData(formattedText, "GPS Error", "GPS Error")
+                pos => sendData(text, pos.coords.latitude, pos.coords.longitude),
+                err => sendData(text, "GPS Error", "GPS Error")
             );
         } else {
-            sendData(formattedText, "N/A", "N/A");
+            sendData(text, "N/A", "N/A");
         }
     };
 
     recognition.onend = () => { isRecording = false; };
 
-    function startVoice(useGps) {
-        localStorage.setItem('lastUseGps', useGps);
+    function startVoice(gps) {
+        const url = localStorage.getItem('loggerScriptURL');
+        if (!url) { alert("Setup not complete."); return; }
+        useGps = gps;
         document.getElementById('transcript').innerText = "...";
         recognition.start();
     }
 
+    // --- 4. DATA SENDING ---
     function sendData(text, lat, lon) {
-        fetch(localStorage.getItem('loggerScriptURL'), { method: 'POST', mode: 'no-cors', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ text, lat, lon }) })
+        document.getElementById('status').innerText = "Sending...";
+        fetch(localStorage.getItem('loggerScriptURL'), {
+            method: 'POST', 
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, lat: lat, lon: lon })
+        })
         .then(() => {
             document.getElementById('status').innerText = "✅ Saved!";
             setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
-        });
+        })
+        .catch(err => { document.getElementById('status').innerText = "Error"; });
     }
 
-    if(!localStorage.getItem('loggerScriptURL')) document.getElementById('setup-screen').style.display = 'block';
-    function saveSetup() {
-        const url = document.getElementById('deployInput').value;
-        if (url.includes('script.google.com')) {
-            localStorage.setItem('loggerScriptURL', url);
-            location.reload();
-        }
-    }
+    btnVoice.addEventListener('click', () => { if(!pressTimer) startVoice(false); });
+    btnGps.addEventListener('click', () => { if(!pressTimer) startVoice(true); });
  </script>
 </body>
 </html>
