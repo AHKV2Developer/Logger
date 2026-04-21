@@ -64,7 +64,7 @@
         // Pointer events are more reliable than Click/Touch for mobile buttons
         btn.addEventListener('pointerdown', (e) => {
             isLongPress = false;
-            pressTimer = setTimeout(toggleMode, 600);
+            pressTimer = setTimeout(toggleMode, 400);
         });
 
         btn.addEventListener('pointerup', (e) => {
