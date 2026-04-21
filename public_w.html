@@ -13,20 +13,27 @@
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; margin: 0; }
         
-        /* The main interface container */
+        /* Containers */
         #ui-container { transition: opacity 0.3s; }
-        
+        #btn-container { display: flex; flex-direction: column; width: 100%; transition: all 0.3s; }
+
         .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: none; transition: transform 0.1s; }
         .btn:active { transform: scale(0.98); }
         .blue { background: #007bff; }
         .green { background: #28a745; }
         
-        /* Button Mode styles */
-        body.button-mode #ui-container { display: none; }
-        body.button-mode #btnVoice { 
+        /* Hiding specific buttons in Button Mode */
+        body.mode-voice #ui-container, body.mode-gps #ui-container { display: none; }
+        body.mode-voice #btnGps, body.mode-gps #btnVoice { display: none; }
+        
+        /* Button Mode Floating State */
+        body.mode-voice #btn-container, body.mode-gps #btn-container { 
             position: fixed; bottom: 20px; right: 20px; 
+            width: 70px; height: 70px; z-index: 9999;
+        }
+        body.mode-voice .btn, body.mode-gps .btn { 
             width: 70px; height: 70px; padding: 0; border-radius: 50%;
-            font-size: 12px; z-index: 9999; margin: 0;
+            font-size: 10px; margin: 0;
         }
 
         #status { font-size: 20px; color: #bbb; margin-top: 20px; }
@@ -37,16 +44,19 @@
 
  <div id="ui-container">
      <h2>Voice Logger</h2>
-     <button id="btnGps" class="btn green">📍 VOICE + GPS</button>
+ </div>
+  
+ <div id="btn-container">
+     <button id="btnVoice" class="btn blue">🎤 VOICE</button>
+     <button id="btnGps" class="btn green">📍 GPS</button>
+ </div>
+
+ <div id="ui-container-bottom">
      <div id="status">Ready</div>
      <div id="transcript">...</div>
  </div>
-  
- <button id="btnVoice" class="btn blue">🎤 VOICE</button>
 
  <script>
-    // --- 1. SETUP & STATE ---
-    let isButtonMode = false;
     let pressTimer;
     const LONG_PRESS_DURATION = 600; 
 
@@ -60,42 +70,41 @@
                 localStorage.setItem('loggerScriptURL', deployUrl);
                 alert("Setup Successful!");
                 window.history.replaceState(null, '', window.location.origin + window.location.pathname);
-            } else {
-                alert("Error: Invalid Setup URL.");
             }
         }
     }
     handleSetup();
 
-    // --- 2. GESTURE LOGIC (Long Press) ---
-    const btnVoice = document.getElementById('btnVoice');
-    
-    function toggleMode() {
-        isButtonMode = !isButtonMode;
-        document.body.classList.toggle('button-mode', isButtonMode);
-        if (navigator.vibrate) navigator.vibrate(100);
+    function toggleMode(mode) {
+        // If we are already in the mode, return to full; otherwise set mode
+        if (document.body.classList.contains(mode)) {
+            document.body.className = '';
+        } else {
+            document.body.className = mode;
+        }
     }
 
-    btnVoice.addEventListener('touchstart', (e) => {
-        pressTimer = setTimeout(() => {
-            toggleMode();
-            pressTimer = null; 
-        }, LONG_PRESS_DURATION);
-    });
+    function setupButton(button, useGps, modeName) {
+        button.addEventListener('touchstart', (e) => {
+            pressTimer = setTimeout(() => {
+                toggleMode(modeName);
+                pressTimer = null; 
+            }, LONG_PRESS_DURATION);
+        });
 
-    btnVoice.addEventListener('touchend', (e) => {
-        if (pressTimer) {
-            clearTimeout(pressTimer);
-            startVoice(false); // Trigger Voice Only
-        }
-    });
+        button.addEventListener('touchend', (e) => {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                startVoice(useGps);
+            }
+        });
+    }
 
-    // --- 3. RECORDING & GPS LOGIC ---
+    setupButton(document.getElementById('btnVoice'), false, 'mode-voice');
+    setupButton(document.getElementById('btnGps'), true, 'mode-gps');
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    const btnGps = document.getElementById('btnGps');
-
-    btnGps.onclick = () => startVoice(true);
 
     recognition.onstart = () => { document.getElementById('status').innerText = "Listening..."; };
     recognition.onresult = (event) => {
@@ -104,7 +113,6 @@
         document.getElementById('transcript').innerText = text;
         document.getElementById('status').innerText = "Processing...";
         
-        // Retrieve whether we wanted GPS from the last startVoice call
         const useGps = localStorage.getItem('lastUseGps') === 'true';
         
         if (useGps) {
@@ -127,7 +135,6 @@
         recognition.start();
     }
 
-    // --- 4. DATA SENDING ---
     function sendData(text, lat, lon) {
         document.getElementById('status').innerText = "Sending...";
         fetch(localStorage.getItem('loggerScriptURL'), {
