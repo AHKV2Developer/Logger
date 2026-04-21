@@ -8,8 +8,6 @@
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; height: 100vh; margin: 0; box-sizing: border-box; display: flex; flex-direction: column; }
         
         h2 { margin-top: 0; }
-
-        /* Main Container for buttons */
         #btn-container { display: flex; flex-direction: column; width: 100%; }
 
         .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: manipulation; transition: transform 0.1s; }
@@ -20,7 +18,7 @@
         #status { font-size: 20px; color: #bbb; margin-top: 20px; }
         #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; font-size: 18px; }
 
-        /* --- SHRUNK MODE --- */
+        /* SHRUNK MODE */
         body.shrunk h2 { display: none; }
         body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 10px; margin-top: 10px; }
         body.shrunk .btn { width: 48%; padding: 25px 0; font-size: 16px; margin: 0; }
@@ -41,7 +39,7 @@
  <div id="transcript">...</div>
 
  <script>
-    // --- 1. SETUP & HANDSHAKE ---
+    // --- 1. SETUP ---
     function handleSetup() {
         const urlParams = new URLSearchParams(window.location.search);
         const deployUrl = urlParams.get('deploy');
@@ -56,12 +54,18 @@
     let pressTimer;
     let isRecording = false;
     let manualOverride = false;
+    let pageFullyLoaded = false; // Prevents auto-shrink on initial load
+    
+    // Give the layout 500ms to settle before enabling auto-shrink
+    setTimeout(() => { pageFullyLoaded = true; }, 500);
+
     const btnVoice = document.getElementById('btnVoice');
     const btnGps = document.getElementById('btnGps');
 
-    // Auto-switch to Shrunk mode on narrow screens
     const observer = new ResizeObserver(entries => {
-        if (manualOverride || isRecording) return;
+        // Do not auto-shrink if: not fully loaded yet, manual override, or recording
+        if (!pageFullyLoaded || manualOverride || isRecording) return;
+        
         const isNarrow = entries[0].contentRect.width < 400;
         if (isNarrow) enterShrunkMode();
         else exitShrunkMode();
@@ -86,7 +90,6 @@
         else enterShrunkMode();
     }
 
-    // Gesture setup
     function setupGesture(btn) {
         btn.addEventListener('touchstart', () => {
             pressTimer = setTimeout(toggleMode, 600);
