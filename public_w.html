@@ -4,117 +4,78 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
     
     <title>Voice Logger</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; margin: 0; }
+        body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; text-align: center; margin: 0; display: flex; flex-direction: column; height: 100vh; }
         
-        /* Setup Screen */
-        #setup-screen { display: none; padding-top: 50px; }
-        body.unconfigured #ui-container, body.unconfigured #btn-container, body.unconfigured #ui-container-bottom { display: none; }
-        body.unconfigured #setup-screen { display: block; }
-
-        /* Interface */
-        #ui-container, #ui-container-bottom { transition: opacity 0.3s; }
-        #btn-container { display: flex; flex-direction: column; width: 100%; transition: all 0.3s; }
-
-        .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: none; transition: transform 0.1s; }
-        .btn:active { transform: scale(0.98); }
+        #ui-container { margin-bottom: 10px; }
+        #btn-container { display: flex; flex-direction: column; width: 100%; gap: 10px; }
+        
+        .btn { padding: 30px 0; border-radius: 20px; border: none; color: white; font-size: 20px; font-weight: bold; touch-action: none; transition: all 0.2s; }
         .blue { background: #007bff; }
         .green { background: #28a745; }
-        
-        /* Lean HUD Styles */
-        body.mode-voice #ui-container, body.mode-voice #ui-container-bottom, body.mode-voice #btnGps { display: none; }
-        body.mode-gps #ui-container, body.mode-gps #ui-container-bottom, body.mode-gps #btnVoice { display: none; }
-        
-        body.mode-voice #btn-container, body.mode-gps #btn-container { 
-            position: fixed; bottom: 20px; right: 20px; width: 70px; height: 70px; z-index: 9999;
-        }
-        body.mode-voice .btn, body.mode-gps .btn { 
-            width: 70px; height: 70px; padding: 0; border-radius: 50%; font-size: 10px; margin: 0;
-        }
 
-        #status { font-size: 20px; color: #bbb; margin-top: 20px; }
-        #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; }
+        #status { font-size: 14px; color: #bbb; margin-top: 10px; }
+        #transcript { font-style: italic; color: #4fc3f7; margin-top: 5px; font-size: 14px; flex-grow: 1; overflow-y: auto; }
+
+        /* SHRUNK MODE (Triggered by class .shrunk) */
+        body.shrunk #ui-container { display: none; }
+        body.shrunk #btn-container { flex-direction: row; justify-content: center; gap: 10px; }
+        body.shrunk .btn { width: 70px; height: 70px; padding: 0; font-size: 10px; border-radius: 50%; }
+        body.shrunk #status { font-size: 12px; }
     </style>
 </head>
 <body>
 
- <div id="setup-screen">
+ <div id="setup-screen" style="display:none; padding-top: 50px;">
     <h2>Setup Required</h2>
-    <p>Please paste your Google Script Deploy URL:</p>
-    <input type="text" id="deployInput" placeholder="https://script.google.com/..." style="width:90%; padding:15px; border-radius:10px; border:none; margin-bottom: 20px;">
-    <button onclick="saveSetup()" class="btn blue">Save Configuration</button>
+    <input type="text" id="deployInput" placeholder="Google Script URL..." style="width:90%; padding:10px;">
+    <button onclick="saveSetup()" class="btn blue" style="width:90%; margin-top:10px;">Save</button>
  </div>
 
- <div id="ui-container">
-     <h2>Voice Logger</h2>
- </div>
+ <div id="ui-container"><h2>Voice Logger</h2></div>
   
  <div id="btn-container">
-     <button id="btnVoice" class="btn blue">🎤 VOICE</button>
-     <button id="btnGps" class="btn green">📍 GPS</button>
+     <button id="btnVoice" class="btn blue">VOICE</button>
+     <button id="btnGps" class="btn green">GPS</button>
  </div>
 
- <div id="ui-container-bottom">
-     <div id="status">Ready</div>
-     <div id="transcript">...</div>
- </div>
+ <div id="status">Ready</div>
+ <div id="transcript">...</div>
 
  <script>
     let pressTimer;
     const LONG_PRESS_DURATION = 600; 
 
-    // 1. Handshake & Setup Logic
-    function checkConfiguration() {
-        const savedUrl = localStorage.getItem('loggerScriptURL');
-        const urlParams = new URLSearchParams(window.location.search);
-        const deployUrl = urlParams.get('deploy');
-        
-        if (deployUrl) {
-            const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
-            if (regex.test(deployUrl)) {
-                localStorage.setItem('loggerScriptURL', deployUrl);
-                window.history.replaceState(null, '', window.location.origin + window.location.pathname);
-                alert("Setup successful!");
-                location.reload();
-                return;
+    // Resize Observer for Auto-Shrink
+    const observer = new ResizeObserver(entries => {
+        for (let entry of entries) {
+            // If width < 350px, force shrunk mode
+            if (entry.contentRect.width < 350) {
+                document.body.classList.add('shrunk');
+            } else {
+                // Only auto-remove if not manually toggled? 
+                // We'll keep it simple: allow toggle to override
             }
         }
+    });
+    observer.observe(document.body);
 
-        if (!savedUrl) {
-            document.body.classList.add('unconfigured');
-        }
+    function toggleShrunk() {
+        document.body.classList.toggle('shrunk');
     }
 
-    function saveSetup() {
-        const url = document.getElementById('deployInput').value;
-        const regex = /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/;
-        if (regex.test(url)) {
-            localStorage.setItem('loggerScriptURL', url);
-            location.reload(); 
-        } else {
-            alert("Invalid URL.");
-        }
-    }
-
-    // 2. Gesture Engine
-    function toggleMode(mode) {
-        document.body.className = document.body.classList.contains(mode) ? '' : mode;
-    }
-
-    function setupButton(button, useGps, modeName) {
+    // Gesture Logic
+    function setupButton(button, useGps) {
         button.addEventListener('touchstart', (e) => {
             pressTimer = setTimeout(() => {
-                toggleMode(modeName);
+                toggleShrunk();
                 pressTimer = null; 
             }, LONG_PRESS_DURATION);
         });
-
         button.addEventListener('touchend', (e) => {
             if (pressTimer) {
                 clearTimeout(pressTimer);
@@ -123,17 +84,15 @@
         });
     }
 
-    setupButton(document.getElementById('btnVoice'), false, 'mode-voice');
-    setupButton(document.getElementById('btnGps'), true, 'mode-gps');
+    setupButton(document.getElementById('btnVoice'), false);
+    setupButton(document.getElementById('btnGps'), true);
 
-    // 3. Recording & Data
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-
+    // Recording Logic
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.onstart = () => { document.getElementById('status').innerText = "Listening..."; };
     recognition.onresult = (event) => {
-        let text = event.results[0][0].transcript.charAt(0).toUpperCase() + event.results[0][0].transcript.slice(1);
-        document.getElementById('transcript').innerText = text;
+        let text = event.results[0][0].transcript;
+        document.getElementById('transcript').innerText = text.charAt(0).toUpperCase() + text.slice(1);
         document.getElementById('status').innerText = "Processing...";
         const useGps = localStorage.getItem('lastUseGps') === 'true';
         
@@ -151,16 +110,22 @@
     }
 
     function sendData(text, lat, lon) {
-        document.getElementById('status').innerText = "Sending...";
         fetch(localStorage.getItem('loggerScriptURL'), { method: 'POST', mode: 'no-cors', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ text, lat, lon }) })
         .then(() => {
             document.getElementById('status').innerText = "✅ Saved!";
             setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
-        })
-        .catch(err => { document.getElementById('status').innerText = "Error"; });
+        });
     }
 
-    checkConfiguration();
+    // Handshake check
+    if(!localStorage.getItem('loggerScriptURL')) document.getElementById('setup-screen').style.display = 'block';
+    function saveSetup() {
+        const url = document.getElementById('deployInput').value;
+        if (url.includes('script.google.com')) {
+            localStorage.setItem('loggerScriptURL', url);
+            location.reload();
+        }
+    }
  </script>
 </body>
 </html>
