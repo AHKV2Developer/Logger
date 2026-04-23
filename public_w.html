@@ -48,12 +48,46 @@
     }
     handleSetup();
 
-    // --- 2. GESTURE LOGIC (The Fix) ---
+    // --- 2. TELEMETRY MODULE ---
+    async function getInstallationID() {
+        let installId = localStorage.getItem('app_installation_id');
+        if (!installId) {
+            const deployUrl = localStorage.getItem('loggerScriptURL') || "unknown";
+            const msgUint8 = new TextEncoder().encode(deployUrl);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            // Create a 16-character unique ID from the hash
+            installId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+            localStorage.setItem('app_installation_id', installId);
+        }
+        return installId;
+    }
+
+    async function reportTelemetry(data) {
+        const HUB_DEPLOY_URL = "https://script.google.com/macros/s/AKfycbz7FmfRi3tl_bz4Ni-FeXMwvP1JcGFiEnrvP9-rLgNFjrWJZ1kqy2XEDTPo0n-DwVuUhg/exec"; // Update this with your Hub URL
+        try {
+            const installId = await getInstallationID();
+            fetch(HUB_DEPLOY_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    installationID: installId,
+                    timestamp: new Date().toISOString(),
+                    ...data
+                })
+            });
+        } catch (err) {
+            console.log("Telemetry background report skipped.");
+        }
+    }
+
+    // --- 3. GESTURE LOGIC ---
     let pressTimer;
     let isLongPress = false;
 
     function toggleMode() {
-        isLongPress = true; // Flag to prevent the click action
+        isLongPress = true; 
         document.body.classList.toggle('shrunk');
         const isShrunk = document.body.classList.contains('shrunk');
         document.getElementById('btnVoice').innerText = isShrunk ? "🎤 VOICE" : "🎤 VOICE ONLY";
@@ -61,7 +95,6 @@
     }
 
     function setupButton(btn, useGps) {
-        // Pointer events are more reliable than Click/Touch for mobile buttons
         btn.addEventListener('pointerdown', (e) => {
             isLongPress = false;
             pressTimer = setTimeout(toggleMode, 400);
@@ -78,7 +111,7 @@
     setupButton(document.getElementById('btnVoice'), false);
     setupButton(document.getElementById('btnGps'), true);
 
-    // --- 3. VOICE RECOGNITION ---
+    // --- 4. VOICE RECOGNITION ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     let currentUseGps = false;
@@ -110,6 +143,7 @@
     }
 
     function sendData(text, lat, lon) {
+        // 1. Report to Local S/S
         fetch(localStorage.getItem('loggerScriptURL'), {
             method: 'POST', 
             mode: 'no-cors',
@@ -119,6 +153,13 @@
         .then(() => {
             document.getElementById('status').innerText = "✅ Saved!";
             setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
+        });
+
+        // 2. Report to Analytics Hub (Fire-and-forget)
+        reportTelemetry({
+            deployUrl: localStorage.getItem('loggerScriptURL'),
+            hasGPS: (lat !== "N/A" && lat !== "GPS Error"),
+            eventType: 'voice_log'
         });
     }
  </script>
