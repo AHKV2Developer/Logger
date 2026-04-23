@@ -5,58 +5,89 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Voice Logger</title>
     <style>
-    /* 1. Body: Light Background, Dark Text */
-    body { 
-        font-family: -apple-system, sans-serif; 
-        background: #ffffff; 
-        color: #121212; 
-        padding: 20px; 
-        text-align: center; 
-        height: 100vh; 
-        margin: 0; 
-        box-sizing: border-box; 
-        display: flex; 
-        flex-direction: column; 
-    }
-    
-    #btn-container { display: flex; flex-direction: column; width: 100%; transition: all 0.3s; }
+        /* 1. Theme Variables */
+        :root {
+            --primary: #2563eb;
+            --gps: #10b981;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-sub: #475569;
+            --status: #64748b;
+        }
 
-    .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: none; }
-    .blue { background: #2563eb; }
-    .green { background: #10b981; }
+        /* Dark Theme Variables */
+        body.dark {
+            --bg: #121212;
+            --card-bg: #1e1e1e;
+            --text-main: #ffffff;
+            --text-sub: #bbb;
+            --status: #888;
+        }
 
-    /* 2. Status/Transcript: Adjusted for dark text */
-    #status { font-size: 20px; color: #666; margin-top: 20px; }
-    #transcript { font-style: italic; color: #0056b3; margin: 20px; min-height: 50px; font-size: 18px; }
+        body { 
+            font-family: -apple-system, system-ui, sans-serif; 
+            background: var(--bg); 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0; 
+            transition: background 0.3s;
+        }
 
-    /* SHRUNK MODE */
-    body.shrunk h2 { display: none; }
-    body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 10px; margin-top: 10px; }
-    body.shrunk .btn { width: 48%; padding: 25px 0; font-size: 16px; margin: 0; }
-    body.shrunk #status { font-size: 16px; }
-    body.shrunk #transcript { font-size: 16px; margin: 10px; }
-</style>
+        .container { 
+            background: var(--card-bg); 
+            padding: 2rem; 
+            border-radius: 1.5rem; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
+            width: 90%; 
+            max-width: 400px; 
+            text-align: center; 
+            transition: background 0.3s;
+        }
+
+        #status { margin: 1rem 0; font-weight: 500; color: var(--text-main); min-height: 1.5rem; }
+        #transcribedText { font-size: 0.9rem; color: var(--text-sub); margin: 10px 0; font-style: italic; min-height: 1.2rem; }
+        
+        button { border: none; border-radius: 1rem; padding: 1rem 2rem; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: transform 0.1s; width: 100%; margin-bottom: 1rem; color: white; }
+        button:active { transform: scale(0.98); }
+        
+        .btn-voice { background: var(--primary); }
+        .btn-gps { background: var(--gps); }
+
+        /* SHRUNK MODE STYLES */
+        body.shrunk .container { padding: 1rem; }
+        body.shrunk .btn-group { display: flex; gap: 10px; }
+        body.shrunk button { margin-bottom: 0; padding: 0.8rem; font-size: 0.9rem; }
+    </style>
 </head>
 <body>
 
- <h2 id="app-title">Voice Logger</h2>
-  
- <div id="btn-container">
-     <button id="btnVoice" class="btn blue">🎤 VOICE ONLY</button>
-     <button id="btnGps" class="btn green">📍 VOICE + GPS</button>
- </div>
-  
- <div id="status">Ready</div>
- <div id="transcript">...</div>
+<div class="container">
+    <div id="status">Ready</div>
+    <div id="transcribedText">...</div>
+    
+    <div class="btn-group">
+        <button id="btnVoice" class="btn-voice">🎤 VOICE</button>
+        <button id="btnGps" class="btn-gps">📍 GPS</button>
+    </div>
+</div>
 
- <script>
-    // --- 1. SETUP ---
+<script>
+    // --- 1. SETUP & THEME PERSISTENCE ---
     function handleSetup() {
         const urlParams = new URLSearchParams(window.location.search);
         const deployUrl = urlParams.get('deploy');
         if (deployUrl && /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(deployUrl)) {
             localStorage.setItem('loggerScriptURL', deployUrl);
             window.history.replaceState(null, '', window.location.origin + window.location.pathname);
+        }
+        
+        // Restore Theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark');
         }
     }
     handleSetup();
@@ -69,7 +100,6 @@
             const msgUint8 = new TextEncoder().encode(deployUrl);
             const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
-            // Create a 16-character unique ID from the hash
             installId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
             localStorage.setItem('app_installation_id', installId);
         }
@@ -77,52 +107,48 @@
     }
 
     async function reportTelemetry(data) {
-        const HUB_DEPLOY_URL = "https://script.google.com/macros/s/AKfycbwNCCGAngwh9F7CR5zJDCljhufzG1pQScxYPCnIteA-6z0S6l3CxVvA4kSpTi6QNE_goQ/exec"; // Update this with your Hub URL
+        const HUB_DEPLOY_URL = "YOUR_HUB_DEPLOYMENT_URL_HERE"; 
         try {
             const installId = await getInstallationID();
             fetch(HUB_DEPLOY_URL, {
-                method: 'POST',
-                mode: 'no-cors',
+                method: 'POST', mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    installationID: installId,
-                    timestamp: new Date().toISOString(),
-                    ...data
-                })
+                body: JSON.stringify({ installationID: installId, timestamp: new Date().toISOString(), ...data })
             });
-        } catch (err) {
-            console.log("Telemetry background report skipped.");
-        }
+        } catch (err) { console.log("Telemetry skipped."); }
     }
 
-    // --- 3. GESTURE LOGIC ---
+    // --- 3. INTERACTION LOGIC ---
     let pressTimer;
     let isLongPress = false;
 
-    function toggleMode() {
-        isLongPress = true; 
+    function toggleShrunk() {
         document.body.classList.toggle('shrunk');
-        const isShrunk = document.body.classList.contains('shrunk');
-        document.getElementById('btnVoice').innerText = isShrunk ? "🎤 VOICE" : "🎤 VOICE ONLY";
-        document.getElementById('btnGps').innerText = isShrunk ? "📍 GPS" : "📍 VOICE + GPS";
     }
 
-    function setupButton(btn, useGps) {
+    function toggleDarkMode() {
+        document.body.classList.toggle('dark');
+        const isDark = document.body.classList.contains('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    }
+
+    function setupButton(btn, useGps, longPressFn) {
         btn.addEventListener('pointerdown', (e) => {
             isLongPress = false;
-            pressTimer = setTimeout(toggleMode, 400);
+            pressTimer = setTimeout(() => {
+                isLongPress = true;
+                longPressFn();
+            }, 500); // 500ms trigger
         });
 
         btn.addEventListener('pointerup', (e) => {
             clearTimeout(pressTimer);
-            if (!isLongPress) {
-                startVoice(useGps);
-            }
+            if (!isLongPress) { startVoice(useGps); }
         });
     }
 
-    setupButton(document.getElementById('btnVoice'), false);
-    setupButton(document.getElementById('btnGps'), true);
+    setupButton(document.getElementById('btnVoice'), false, toggleShrunk);
+    setupButton(document.getElementById('btnGps'), true, toggleDarkMode);
 
     // --- 4. VOICE RECOGNITION ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -130,11 +156,9 @@
     let currentUseGps = false;
 
     recognition.onstart = () => { document.getElementById('status').innerText = "Listening..."; };
-
     recognition.onresult = (event) => {
-        let rawText = event.results[0][0].transcript;
-        const text = rawText.charAt(0).toUpperCase() + rawText.slice(1);
-        document.getElementById('transcript').innerText = text;
+        let text = event.results[0][0].transcript;
+        document.getElementById('transcribedText').innerText = text.charAt(0).toUpperCase() + text.slice(1);
         document.getElementById('status').innerText = "Processing...";
         
         if (currentUseGps) {
@@ -151,15 +175,12 @@
         const url = localStorage.getItem('loggerScriptURL');
         if (!url) { alert("Setup not complete."); return; }
         currentUseGps = useGps;
-        document.getElementById('transcript').innerText = "...";
         recognition.start();
     }
 
     function sendData(text, lat, lon) {
-        // 1. Report to Local S/S
         fetch(localStorage.getItem('loggerScriptURL'), {
-            method: 'POST', 
-            mode: 'no-cors',
+            method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: text, lat: lat, lon: lon })
         })
@@ -168,9 +189,7 @@
             setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
         });
 
-        // 2. Report to Analytics Hub (Fire-and-forget)
         reportTelemetry({
-            deployUrl: localStorage.getItem('loggerScriptURL'),
             hasGPS: (lat !== "N/A" && lat !== "GPS Error"),
             eventType: 'voice_log'
         });
