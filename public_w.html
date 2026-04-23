@@ -5,24 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Voice Logger</title>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; height: 100vh; margin: 0; box-sizing: border-box; display: flex; flex-direction: column; }
-        
-        #btn-container { display: flex; flex-direction: column; width: 100%; transition: all 0.3s; }
+    /* 1. Body: Light Background, Dark Text */
+    body { 
+        font-family: -apple-system, sans-serif; 
+        background: #ffffff; 
+        color: #121212; 
+        padding: 20px; 
+        text-align: center; 
+        height: 100vh; 
+        margin: 0; 
+        box-sizing: border-box; 
+        display: flex; 
+        flex-direction: column; 
+    }
+    
+    #btn-container { display: flex; flex-direction: column; width: 100%; transition: all 0.3s; }
 
-        .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: none; }
-        .blue { background: #007bff; }
-        .green { background: #28a745; }
+    .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: none; }
+    .blue { background: #007bff; }
+    .green { background: #28a745; }
 
-        #status { font-size: 20px; color: #bbb; margin-top: 20px; }
-        #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; font-size: 18px; }
+    /* 2. Status/Transcript: Adjusted for dark text */
+    #status { font-size: 20px; color: #666; margin-top: 20px; }
+    #transcript { font-style: italic; color: #0056b3; margin: 20px; min-height: 50px; font-size: 18px; }
 
-        /* SHRUNK MODE */
-        body.shrunk h2 { display: none; }
-        body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 10px; margin-top: 10px; }
-        body.shrunk .btn { width: 48%; padding: 25px 0; font-size: 16px; margin: 0; }
-        body.shrunk #status { font-size: 16px; }
-        body.shrunk #transcript { font-size: 16px; margin: 10px; }
-    </style>
+    /* SHRUNK MODE */
+    body.shrunk h2 { display: none; }
+    body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 10px; margin-top: 10px; }
+    body.shrunk .btn { width: 48%; padding: 25px 0; font-size: 16px; margin: 0; }
+    body.shrunk #status { font-size: 16px; }
+    body.shrunk #transcript { font-size: 16px; margin: 10px; }
+</style>
 </head>
 <body>
 
