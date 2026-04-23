@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Voice Logger</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 20px; text-align: center; height: 100vh; margin: 0; box-sizing: border-box; display: flex; flex-direction: column; }
+        
+        #btn-container { display: flex; flex-direction: column; width: 100%; transition: all 0.3s; }
+
+        .btn { width: 100%; padding: 40px 0; border-radius: 20px; border: none; color: white; font-size: 24px; font-weight: bold; margin: 15px 0; touch-action: none; }
+        .blue { background: #007bff; }
+        .green { background: #28a745; }
+
+        #status { font-size: 20px; color: #bbb; margin-top: 20px; }
+        #transcript { font-style: italic; color: #4fc3f7; margin: 20px; min-height: 50px; font-size: 18px; }
+
+        /* SHRUNK MODE */
+        body.shrunk h2 { display: none; }
+        body.shrunk #btn-container { flex-direction: row; justify-content: space-between; gap: 10px; margin-top: 10px; }
+        body.shrunk .btn { width: 48%; padding: 25px 0; font-size: 16px; margin: 0; }
+        body.shrunk #status { font-size: 16px; }
+        body.shrunk #transcript { font-size: 16px; margin: 10px; }
+    </style>
+</head>
+<body>
+
+ <h2 id="app-title">Voice Logger</h2>
+  
+ <div id="btn-container">
+     <button id="btnVoice" class="btn blue">🎤 VOICE ONLY</button>
+     <button id="btnGps" class="btn green">📍 VOICE + GPS</button>
+ </div>
+  
+ <div id="status">Ready</div>
+ <div id="transcript">...</div>
+
+ <script>
+    // --- 1. SETUP ---
+    function handleSetup() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const deployUrl = urlParams.get('deploy');
+        if (deployUrl && /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(deployUrl)) {
+            localStorage.setItem('loggerScriptURL', deployUrl);
+            window.history.replaceState(null, '', window.location.origin + window.location.pathname);
+        }
+    }
+    handleSetup();
+
+    // --- 2. GESTURE LOGIC (The Fix) ---
+    let pressTimer;
+    let isLongPress = false;
+
+    function toggleMode() {
+        isLongPress = true; // Flag to prevent the click action
+        document.body.classList.toggle('shrunk');
+        const isShrunk = document.body.classList.contains('shrunk');
+        document.getElementById('btnVoice').innerText = isShrunk ? "🎤 VOICE" : "🎤 VOICE ONLY";
+        document.getElementById('btnGps').innerText = isShrunk ? "📍 GPS" : "📍 VOICE + GPS";
+    }
+
+    function setupButton(btn, useGps) {
+        // Pointer events are more reliable than Click/Touch for mobile buttons
+        btn.addEventListener('pointerdown', (e) => {
+            isLongPress = false;
+            pressTimer = setTimeout(toggleMode, 400);
+        });
+
+        btn.addEventListener('pointerup', (e) => {
+            clearTimeout(pressTimer);
+            if (!isLongPress) {
+                startVoice(useGps);
+            }
+        });
+    }
+
+    setupButton(document.getElementById('btnVoice'), false);
+    setupButton(document.getElementById('btnGps'), true);
+
+    // --- 3. VOICE RECOGNITION ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    let currentUseGps = false;
+
+    recognition.onstart = () => { document.getElementById('status').innerText = "Listening..."; };
+
+    recognition.onresult = (event) => {
+        let rawText = event.results[0][0].transcript;
+        const text = rawText.charAt(0).toUpperCase() + rawText.slice(1);
+        document.getElementById('transcript').innerText = text;
+        document.getElementById('status').innerText = "Processing...";
+        
+        if (currentUseGps) {
+            navigator.geolocation.getCurrentPosition(
+                pos => sendData(text, pos.coords.latitude, pos.coords.longitude),
+                err => sendData(text, "GPS Error", "GPS Error")
+            );
+        } else {
+            sendData(text, "N/A", "N/A");
+        }
+    };
+
+    function startVoice(useGps) {
+        const url = localStorage.getItem('loggerScriptURL');
+        if (!url) { alert("Setup not complete."); return; }
+        currentUseGps = useGps;
+        document.getElementById('transcript').innerText = "...";
+        recognition.start();
+    }
+
+    function sendData(text, lat, lon) {
+        fetch(localStorage.getItem('loggerScriptURL'), {
+            method: 'POST', 
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, lat: lat, lon: lon })
+        })
+        .then(() => {
+            document.getElementById('status').innerText = "✅ Saved!";
+            setTimeout(() => { document.getElementById('status').innerText = "Ready"; }, 2000);
+        });
+    }
+ </script>
+</body>
+</html>
