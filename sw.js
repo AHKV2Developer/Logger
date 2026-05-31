@@ -2,8 +2,7 @@ const CACHE_NAME = 'logger-v1';
 const ASSETS = [
   'public_w.html',
   'manifest.json',
-  'Logger_Icon_192.png',
-  'Logger_Icon_512.png'
+  'Logger_Icon.png'
 ];
 
 // Install Event - Caches essential files
